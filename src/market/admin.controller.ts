@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminGuard } from './admin.guard';
 import { MarketRepository } from './market.repository';
@@ -22,6 +22,8 @@ const DEFAULT_LIST_LIMIT = 50;
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly markets: MarketRepository,
@@ -79,6 +81,13 @@ export class AdminController {
    * Only `buy`/`sell` ever pay a fee — `split`/`merge`/`redeem`/`transfer`
    * never touch the contract's `apply_fee`, so including them here would
    * silently overcount.
+   */
+  /**
+   * `sampleSize` reflects how many `buy`/`sell` rows were queried — including
+   * ones skipped for null `collateral_amount`/`fee_bps`. Callers can use it
+   * to identify whether the revenue figure is a partial sample (e.g. if rows
+   * are expected but `sampleSize` is zero) without it implying every row
+   * contributed to the total.
    */
   @Get('fee-revenue')
   feeRevenue() {
@@ -145,10 +154,30 @@ export class AdminController {
   @Get('network')
   async network() {
     const health = await this.stellar.getNetworkHealth();
+    const minBalanceStroops = this.config.get<bigint>('oracleMinBalanceStroops')!;
+
+    const [oracleXlmStroops, deployerXlmStroops] = await Promise.all([
+      this.stellar.getAccountXlmBalance(this.stellar.oraclePublicKey),
+      this.stellar.getAccountXlmBalance(this.stellar.deployerPublicKey),
+    ]);
+
+    if (oracleXlmStroops !== null && oracleXlmStroops < minBalanceStroops) {
+      this.logger.warn(
+        `oracle account ${this.stellar.oraclePublicKey} XLM balance ${oracleXlmStroops} stroops is below minimum ${minBalanceStroops} stroops`,
+      );
+    }
+    if (deployerXlmStroops !== null && deployerXlmStroops < minBalanceStroops) {
+      this.logger.warn(
+        `deployer account ${this.stellar.deployerPublicKey} XLM balance ${deployerXlmStroops} stroops is below minimum ${minBalanceStroops} stroops`,
+      );
+    }
+
     return {
       ...health,
       oraclePublicKey: this.stellar.oraclePublicKey,
       deployerPublicKey: this.stellar.deployerPublicKey,
+      oracleXlmStroops: oracleXlmStroops?.toString() ?? null,
+      deployerXlmStroops: deployerXlmStroops?.toString() ?? null,
       contracts: {
         vaultContract: this.config.get<string>('vaultContract'),
         lazerContract: this.config.get<string>('lazerContract'),
