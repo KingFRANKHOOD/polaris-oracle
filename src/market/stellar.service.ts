@@ -591,6 +591,22 @@ export class StellarService {
     return tx.result.unwrap();
   }
 
+  /**
+   * Native XLM balance of any account, in stroops — uses the native XLM
+   * SAC's `balance()` read, the same path as `tokenBalance`. Returns `null`
+   * when `NATIVE_XLM_SAC` is not configured (can't query without the
+   * contract ID) or the account doesn't exist on-chain yet.
+   */
+  async getAccountXlmBalance(publicKey: string): Promise<bigint | null> {
+    const nativeXlmSac = this.config.get<string>('nativeXlmSac');
+    if (!nativeXlmSac) return null;
+    try {
+      return await this.tokenBalance(nativeXlmSac, publicKey);
+    } catch {
+      return null;
+    }
+  }
+
   // ---------- SEP-41 token balances ----------
   //
   // Unlike every other client above, a SAC (Stellar Asset Contract — e.g.

@@ -101,6 +101,8 @@ export interface AppConfig {
   oddsChangeWindowSecs: number;
   marketFactoryMinFeeBps: number;
   marketFactoryInitialLiquidityStroops: string;
+  /** Warn when oracle or deployer account XLM drops below this — checked on every factory interval tick. Default 1 XLM (10_000_000 stroops). */
+  oracleMinBalanceStroops: bigint;
   /**
    * `contracts/perpetual`'s `price_oracle` bundle requires *both* the
    * Reflector and RedStone legs whenever it's configured at all (see
@@ -244,4 +246,5 @@ export default (): AppConfig => ({
   mockRedstoneContract: process.env.MOCK_REDSTONE_CONTRACT,
   redstoneMaxStalenessSecs: process.env.REDSTONE_MAX_STALENESS_SECS ?? '600',
   redstoneToleranceBps: Number(process.env.REDSTONE_TOLERANCE_BPS ?? 150),
+  oracleMinBalanceStroops: BigInt(process.env.ORACLE_MIN_BALANCE_STROOPS ?? '10000000'), // 1 XLM
 });
